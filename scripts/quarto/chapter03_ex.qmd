@@ -1,0 +1,1191 @@
+---
+title: "Chapter 03 exercises"
+format: 
+  html:
+    self-contained: true
+    toc: true
+---
+
+```{r}
+#| message: false
+#| echo: false
+
+library(resampledata3)
+library(tidyverse)
+```
+
+## 3.1 
+Suppose you conduct an experiment and inject a drug into three mice. Their times for running a maze are 8, 10, and 15s; the times for two control mice are 5 and 9s.
+
+**a. Compute the difference in mean times between the treatment group and the control group.**
+```{r}
+drug <- c(8, 10, 15)
+control <- c(5,9)
+obs <- mean(drug) - mean(control)
+obs
+```
+
+**b. Write out all possible ways to split these times into the two groups and calculate the corresponding differences in means.**
+```{r}
+comb <- c(drug, control)
+comb
+```
+```{r}
+drugs <- combn(comb, 3) |> as.data.frame()
+drugs
+```
+
+```{r}
+setdiff(comb, combos[,1])
+```
+
+```{r}
+controls <- drugs |> 
+  map(\(x) setdiff(comb, x))
+df <- controls |> 
+  enframe() |> 
+  rowwise() |> 
+  mutate(v2 = setdiff(comb, unlist(value)) |> list()) |> 
+  rename(control=value, drug=v2) |> 
+  rowwise() |> 
+  mutate(d = mean(unlist(drug)) - mean(unlist(control)))
+df
+```
+
+**c. What proportion of the differences are as large or larger than the observed difference in mean times?**
+```{r}
+d <- df |> 
+  pull(d)
+mean(d >= obs)
+```
+
+**d. For each permutation, calculate the mean of the treatment group only. What proportion of these means are as large or larger than the observed mean of the treatment group?**
+
+```{r}
+df <- df |> 
+  mutate(mean_drug = mean(unlist(drug)))
+df
+```
+
+```{r}
+means_drug <- df |> 
+  pull(mean_drug)
+mean(means_drug >= mean(drug))
+```
+
+## 3.2
+
+**Your statistics professor comes to class with a big urn that she claims contains 9999 blue marbles and 1 red marble. You draw out one marble at random and find that it is red. Would you be willing to tell your professor that you think she is wrong about the distribution of colors? Why or why not? What are you assuming in making your decision? What if instead, she had claimed there are 9 blue marbles and 1 red one?**
+
+From a purely probabilistic perspective, the event you described (drawing the one red marble) is not impossible, but it is extremely unlikely given the information the statistics professor provided about the distribution of colors.
+
+The probability of drawing the one red marble from the urn that contains 9999 blue marbles and 1 red marble is 0.0001 (1 in 10,000).
+
+Observing such an unlikely event could lead you to question the truth of the professor's claim about the distribution of marbles. There are two possibilities: either you just witnessed a very rare event, or the professor's claim is incorrect.
+
+However, it is important to remember that being highly unlikely is not the same as being impossible. While the event you observed is surprising, it does not definitively prove the professor's claim is wrong.
+
+Scientifically speaking, to make a strong assertion that the professor is undoubtedly wrong, you would need more evidence - perhaps multiple drawings yielding a high percentage of red marbles, which would conclusively contradict the claimed distribution.
+
+In conclusion, you might express skepticism or surprise at the outcome, but asserting with certainty that the professor is wrong, based on a single draw, wouldn't be advised from the probabilistic viewpoint. Instead, you could propose further investigation or experimentation.
+
+**What if instead, she had claimed there are 9 blue marbles and 1 red one?**
+In this case, the probability of drawing the one red marble from an urn containing 9 blue marbles and 1 red marble is 0.1 or 1 in 10, which is significantly higher than in the previous scenario.
+
+If you draw one marble and it turns out to be red, this event is quite possible and would not be a strong reason for you to doubt your professor's claim about the distribution of the marbles. 
+
+Mathematically speaking, observing a red marble under these conditions would be relatively unsurprising, and would not likely prompt you to question the stated distribution. 
+
+So, if she claimed there are 9 blue marbles and 1 red one, and you drew a red one, it would be consistent with the stated probabilities.
+
+## 3.5
+
+In the flight delays case study in Section 1.1, the data contain flight delays for two airlines, American Airlines (AA) and United Airlines (UA).
+
+**a. Conduct a two‐sided permutation test to see if the difference in mean delay times between the two carriers is statistically discernible.**
+
+```{r}
+FlightDelays |> summary()
+```
+
+```{r}
+obs_diff <- FlightDelays |> 
+  select(Carrier, Delay) |> 
+  drop_na() |> 
+  group_by(Carrier) |> 
+  summarise(mean=mean(Delay)) |> 
+  pull(mean) |> 
+  set_names(c("AA", "UA")) |> 
+  diff() |> 
+  set_names("UA-AA")
+obs_diff
+```
+
+```{r}
+AA_len <- FlightDelays |> filter(Carrier == "AA") |> count() |> pull()
+UA_len <- FlightDelays |> filter(Carrier == "UA") |> count() |> pull()
+AA_UA_len <- AA_len + UA_len
+delay_time <- FlightDelays$Delay
+N <- 10^4 - 1
+delay_null <- map_dbl(1:N, \(x) {
+  idx <- sample(x = AA_UA_len, size = UA_len, replace = FALSE)
+  mean(delay_time[idx]) - mean(delay_time[-idx])
+})
+
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=delay_null)) +
+  geom_vline(xintercept = obs_diff, linetype="dashed")
+```
+
+```{r}
+(sum(delay_null >= obs_diff) + 1)/ (N+1) *2
+```
+
+The probability of observing a mean difference in delay of 5.9 hours or more extreme between airlines UA and AA assuming that there is no difference is 0.0002. Therefore this result is unlikely to be due to chance.
+
+**b. The flights took place in May and June of 2009. Conduct a two‐sided permutation test to see if the difference in mean delay times between the 2 months is statistically discernible.**
+
+Lets visualise the cummulative distribution of `Delay` colored by the `Month`
+```{r}
+FlightDelays |> 
+  ggplot(aes(x=Delay, color=Month)) +
+  stat_ecdf() +
+  geom_vline(xintercept = 50, linetype="dashed") +
+  labs(title="ECDF of Delays by Month")
+```
+From the ECD plot, there are more flights delayed in the month of May compared to June.
+
+```{r}
+obs_month_diff <- FlightDelays |> 
+  group_by(Month) |> 
+  summarise(mean=mean(Delay)) |> 
+  pull(mean)
+
+obs_month_diff
+```
+Mean difference between May and June
+```{r}
+obs_month_mean_diff <- obs_month_diff |> 
+  pull(mean) |> 
+  diff() |> 
+  set_names("May-June")
+obs_month_mean_diff
+```
+
+Generate the null-distribution
+```{r}
+june_len <- FlightDelays |> filter(Month == "June") |> count() |> pull(n)
+may_len <- FlightDelays |> filter(Month == "May") |> count() |> pull(n)
+may_june_len <- june_len + may_len
+
+N <- 10^4 - 1
+means_delay_month <- map_dbl(1:N, \(x) {
+  idx <- sample(may_june_len, size=may_len, replace = FALSE)
+  mean(delay_time[idx]) - mean(delay_time[-idx])
+})
+
+```
+
+Plot the null-distribution
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=means_delay_month)) +
+  geom_vline(xintercept = obs_month_mean_diff, linetype="dashed")
+```
+```{r}
+ggplot() +
+  geom_density(aes(x=means_delay_month)) +
+  geom_vline(xintercept = obs_month_mean_diff, linetype="dashed")
+```
+
+```{r}
+(sum(means_delay_month <= obs_month_mean_diff) + 1) / (N+1) * 2
+```
+
+A two-sided permutation test of a difference in mean delay times between May and June is statistically significant. The observed mean difference between the carriers UA and AA is -5.6. The probability of observing this difference or more is 0.0002.
+
+
+## 3.6
+
+In the flight delays case study in Section 1.1, the data contains flight delays for two airlines, AA and UA.
+ 
+**a. Compute the proportion of times that each carrier's flights was delayed more than 20min. Conduct a two‐sided test to see if the difference in these proportions is statistically discernible**
+
+```{r}
+df_delayed20 <- FlightDelays |> 
+  mutate(Delayed20 = if_else(Delay > 20, "Yes", "No") |> factor()) |> 
+  select(Carrier, Delayed20) 
+
+df_delayed20 |> 
+  table() |> 
+  proportions(margin = 1) |> 
+  round(4)
+```
+Observed difference in proportion
+```{r}
+obs_delayed20 <- df_delayed20 |> 
+  table() |> 
+  proportions(margin = 1) |> 
+  round(4) |> 
+  _[,2] |> 
+  diff() |> 
+  set_names("UA-AA")
+obs_delayed20  
+```
+
+Permutation test
+```{r}
+AA_len <- df_delayed20 |> filter(Carrier == "AA") |> count() |> pull(n)
+UA_len <- df_delayed20 |> filter(Carrier == "UA") |> count() |> pull(n)
+AA_UA_len <- AA_len + UA_len
+delayed20 <- df_delayed20$Delayed20
+
+N <- 10^4 - 1
+mean_prop_delayed20 <- map_dbl(1:N, \(x) {
+  idx <- sample(AA_UA_len, size = UA_len, replace = TRUE)
+  mean(delayed20[idx] == "Yes") - mean(delayed20[-idx] == "Yes")
+})
+```
+
+Visualise the null-distribution
+```{r}
+ggplot() +
+  geom_histogram(aes(x=mean_prop_delayed20)) +
+  geom_vline(xintercept = obs_delayed20, linetype="dashed")
+```
+```{r}
+(sum(mean_prop_delayed20 >= obs_delayed20) + 1) / (N+1) * 2
+```
+
+A two-sided permutation test on the proportion of flights from carriers AA and UA that are delayed by more than 20 minutes is statistically significant. The observed difference in proportion is 0.0435 with a p-value of 0.0032 indicating that an observed difference of this magnitude or greater is unlikely due to chance.
+
+**b. Compute the variance in the flight delay lengths for each carrier. Conduct a test to see if the variances for UA and AA differ.**
+
+```{r}
+FlightDelays |> 
+  group_by(Carrier) |> 
+  summarise(variance = var(Delay))
+```
+Observed difference in variance
+```{r}
+obs_var_diff <- FlightDelays |> 
+  group_by(Carrier) |> 
+  summarise(variance = var(Delay)) |> 
+  pull(variance) |> 
+  diff() |> 
+  set_names("UA-AA")
+
+obs_var_diff
+```
+
+Permutation test
+```{r}
+AA_len <- FlightDelays |> filter(Carrier == "AA") |> count() |> pull(n)
+UA_len <- FlightDelays |> filter(Carrier == "UA") |> count() |> pull(n)
+AA_UA_len <- AA_len + UA_len
+
+N <- 10^4 - 1
+
+var_diff <- map_dbl(1:N, \(x) {
+  idx <- sample(AA_UA_len, size=UA_len, replace = FALSE)
+  var(delay_time[idx]) - var(delay_time[-idx])
+})
+```
+
+Visualise the null-distribution
+```{r}
+ggplot() +
+  geom_histogram(aes(x=var_diff)) +
+  geom_vline(xintercept = obs_var_diff, linetype="dashed")
+```
+Compute a two-sided p-value
+```{r}
+(sum(var_diff >= obs_var_diff) + 1)/(N+1) * 2
+```
+The observed variance difference of 431.1 is not statistically significant with a p-value of 0.2832. Therefore we fail to reject the null-hypothesis that the variance of delay times between the two carriers are equal.
+
+## 3.7
+
+**In the flight delays case study in Section 1.1, repeat Exercise 3.5 part (a) using three test statistics, (i) the mean of the UA delay times, (ii) the sum of the UA delay times, and (iii) the difference in means, and compare the p‐values. Make sure all three test statistics are computed within the same for loop. What do you observe?**
+
+mean of the UA delay times
+```{r}
+obs_mean_UA <- FlightDelays |> filter(Carrier == "UA") |> summarise(mean=mean(Delay))
+obs_mean_UA
+
+```
+sum of UA delay times
+```{r}
+obs_sum_UA <- FlightDelays |> filter(Carrier == "UA") |> summarise(sum=sum(Delay))
+obs_sum_UA
+```
+difference in means
+```{r}
+obs_diff <- FlightDelays |> 
+  select(Carrier, Delay) |> 
+  drop_na() |> 
+  group_by(Carrier) |> 
+  summarise(mean=mean(Delay)) |> 
+  pull(mean) |> 
+  set_names(c("AA", "UA")) |> 
+  diff() |> 
+  set_names("UA-AA")
+obs_diff
+```
+
+```{r}
+N <- 10^4 - 1
+means_UA <- numeric(N)
+sum_UA <- numeric(N)
+mean_diff <- numeric(N)
+
+for(i in 1:N) {
+  idx <- sample(AA_UA_len, size = UA_len, replace = FALSE)
+  means_UA[i] <- mean(delay_time[idx])
+  sum_UA[i] <- sum(delay_time[idx])
+  mean_diff[i] <- mean(delay_time[idx]) - mean(delay_time[-idx])
+}
+```
+
+p-value for means of UA
+```{r}
+(sum(means_UA >= obs_mean_UA) + 1) / (N+1)
+```
+p-value for sum of UA
+```{r}
+(sum(sum_UA >= obs_sum_UA) + 1) / (N+1)
+```
+
+p-value for mean diff
+```{r}
+(sum(mean_diff >= obs_diff) + 1) / (N+1)
+```
+All the p-values are the same.
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=means_UA)) +
+  geom_vline(xintercept = obs_mean_UA$mean, linetype="dashed")
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=sum_UA)) +
+  geom_vline(xintercept = obs_sum_UA$sum, linetype="dashed")
+```
+```{r}
+ggplot() +
+  geom_histogram(aes(x=mean_diff)) +
+  geom_vline(xintercept = obs_diff, linetype="dashed")
+```
+
+## 3.8
+
+In the flight delays case study in Section 1.1.
+
+**a. Find the trimmed mean of the delay times for UA and AA by trimming 10% on either side of the distribution.*
+
+```{r}
+FlightDelays |> 
+  group_by(Carrier) |> 
+  summarise(mean_trim=mean(Delay, trim = .1),
+            mean=mean(Delay))
+```
+The trimmed mean for both carriers showed a dramatic reduction in the delay times. For AA, the delay is almost 0 and for UA, there's a 3 fold reduction in the mean delay time.
+
+**b. Conduct a two‐sided test to see if the difference in trimmed means is statistically discernible.**
+
+```{r}
+AA_len <- FlightDelays |> filter(Carrier == "AA") |> count() |> pull(n)
+UA_len <- FlightDelays |> filter(Carrier == "UA") |> count() |> pull(n)
+AA_UA_len <- AA_len + UA_len
+delay_time <- FlightDelays$Delay
+N <- 10^4 -1 
+
+```
+
+```{r}
+obs_tr_mean_diff <- FlightDelays |> 
+  group_by(Carrier) |> 
+  summarise(m = mean(Delay, trim=.1)) |> 
+  pull(m) |> 
+  diff() |> 
+  set_names("UA-AA")
+obs_tr_mean_diff
+```
+
+```{r}
+# generate null-distribution
+delay_tr_mean_diff_dist <- map_dbl(1:N, \(x) {
+  idx = sample(AA_UA_len, size = UA_len, replace = TRUE)
+  mean(delay_time[idx], trim=0.1) - mean(delay_time[-idx], trim=0.1)
+})
+```
+
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=delay_tr_mean_diff_dist)) +
+  geom_histogram() +
+  geom_vline(xintercept = obs_tr_mean_diff, col="red", linetype="dashed")
+```
+
+```{r}
+(sum(delay_tr_mean_diff_dist >= obs_tr_mean_diff) + 1) / (N+1) * 2
+```
+
+A two-sided permutation test on the difference between the trim mean delay times for carriers UA and AA is statistically significant with a p-value of 0.0002. The probability of observing a difference of 4.1 hours or more is 0.0002 assuming that the null-hypothesis is true, making the observe result is unlikely if there was no difference.
+
+## 3.9
+In the flight delays case study in Section 1.1,
+
+**a. Compute the proportion of times the flights in May and in June were delayed more than 20min, and conduct a two‐sided test to see if the difference between months is statistically discernible.**
+
+```{r}
+df_delayed20 <- 
+  FlightDelays |> 
+  mutate(delayed20 = if_else(Delay >= 20, "Yes", "No") |> factor())
+
+delayed20_prop <- df_delayed20 |> 
+  select(Month, delayed20) |> 
+  table() |> 
+  prop.table(1)
+
+delayed20_prop
+```
+Observed difference in proportion of times delayed by more than 20 minutes between June and May:
+```{r}
+obs_delayed_diff <- delayed20_prop |> 
+  _[,2] |> 
+  diff() |> 
+  set_names("May-June")
+obs_delayed_diff
+```
+
+```{r}
+june_len <- df_delayed20 |> filter(Month == "June") |> count() |> pull(n)
+may_len <- df_delayed20 |> filter(Month == "May") |> count() |> pull(n)
+june_may_len <- june_len + may_len
+delayed20 <- df_delayed20$delayed20
+N <- 10^4 - 1
+```
+
+
+```{r}
+delayed20_null_dist <- map_dbl(1:N, \(x) {
+  idx <- sample(june_may_len, size = may_len, replace=TRUE)
+  mean(delayed20[idx] == "Yes") - mean(delayed20[-idx] == "Yes")
+})
+
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=delayed20_null_dist)) +
+  geom_vline(xintercept = obs_delayed_diff, col='red', linetype="dashed") 
+```
+
+```{r}
+(sum(delayed20_null_dist <= obs_delayed_diff) + 1) / (N+1) * 2
+```
+
+The probability of observing a difference in proportion of flights delayed by -0.03 between May and June if there truely was no difference is 0.025. Since it is less than 0.05, we conclude that there is a statistically significant difference in this proportion. There are more flights been delayed in June compared to May.
+
+**b. Compute the ratio of the variances in the flight delay times in May and in June. Is this evidence that the true ratio is not equal to 1, or could this be due to chance variability? Conduct a two‐sided test to check.**
+
+```{r}
+library(car)
+var_delay <- Tapply(Delay ~ Month, fun=var, data=FlightDelays)
+var_delay
+```
+
+
+```{r}
+obs_var_delay <- var_delay["May"]/var_delay["June"]
+obs_var_delay
+```
+The variance in flight delay is lower in May compared to June.
+
+```{r}
+delayed_var_null_dist <- map_dbl(1:N, \(x) {
+  idx <- sample(june_may_len, size = may_len, replace=TRUE)
+  var(delay_time[idx]) / var(delay_time[-idx])
+})
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=delayed_var_null_dist)) +
+  geom_vline(xintercept = obs_var_delay, col='red', linetype="dashed") 
+```
+
+```{r}
+(sum(delayed_var_null_dist <= obs_var_delay) + 1) / (N+1) * 2
+```
+
+The p-value is 0.04. The evidence suggests the true ratio is not equal to 1.
+
+## 3.10 
+
+In the black spruce case study in Section 1.10, seedlings were planted in plots that were either subject to competition (from other plants) or not. Use the data set Spruce to conduct a test to see if the mean difference in how much the seedlings grew (in height) over the course of the study under these two treatments is statistically discernible.
+
+```{r}
+Spruce |> 
+  select(Competition, Ht.change) |> 
+  summary()
+```
+```{r}
+n_comp <- 36
+n_no.comp <- 36
+n_Ht.change <- length(Spruce$Ht.change)
+N <- 10^4-1
+
+obs_ht.change <- Tapply(Ht.change ~ Competition, mean, data=Spruce) |> 
+  diff() |> 
+  set_names("NC-N")
+obs_ht.change
+```
+
+```{r}
+# Using sample for produce the null-distribution
+ht.change_null_dist <- map_dbl(1:N, \(x) {
+  idx <- sample(n_Ht.change, size=n_no.comp, replace = TRUE)
+  mean(Spruce$Ht.change[idx]) - mean(Spruce$Ht.change[-idx])
+})
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=ht.change_null_dist)) +
+  geom_vline(xintercept = obs_ht.change, color='red', linetype='dashed')
+```
+
+```{r}
+(sum(ht.change_null_dist >= obs_ht.change) + 1 ) / (N+1) * 2
+```
+
+The observed mean difference of 10.5 is statistically significant with p-value of 0.0002. The null-hypothesis of no difference is rejected.
+
+**This is chatgpt's report:**
+
+"The mean difference in height between trees grown under competitive conditions and trees grown without competition was found to be 10.5 units. A two-sided permutation test yielded a p-value of 0.0002. This result is considered statistically significant (p < 0.001), providing strong evidence that the differing growing conditions result in a significant difference in the height of the trees."
+
+However, beware of making causal or definitive statements based on only a p-value. While a low p-value can indicate a statistically significant difference, it does not determine the biological or practical significance of this difference, or how large the effect size is.
+
+## 3.11
+
+In the Iowa recidivism case study in Section 1.4, for those offenders who recidivated, we have data on the number of days until they reoffended. For those offenders who did recidivate, determine if the difference in the mean number of days (Days) until recidivism between those under 25years of age and those 25years of age and older is statistically discernible.
+
+```{r}
+Recidivism |> 
+  select(Age25, Days)
+```
+
+```{r}
+t.test(Days ~ Age25, data=Recidivism)
+```
+
+Using the `infer` package
+```{r}
+library(infer)
+
+obs_stat <- Recidivism |> 
+  select(Days, Age25) |> 
+  drop_na() |> 
+  specify(Days ~ Age25) |> 
+  calculate(stat="diff in means", order=c( "Over 25", "Under 25"))
+
+obs_stat
+
+```
+
+Generate the null-distribution.
+```{r}
+null_distribution <- Recidivism |> 
+  select(Days, Age25) |> 
+  drop_na() |> 
+  specify(Days ~ Age25) |> 
+  hypothesise(null = "independence") |> 
+  generate(reps = 1000, type = "permute") |> 
+  calculate(stat="diff in means", order=c("Over 25", "Under 25"))
+
+null_distribution |> 
+  visualise() +
+  shade_p_value(obs_stat, direction = "two_sided")
+
+```
+
+```{r}
+null_distribution |> 
+  get_pvalue(obs_stat, direction = "two_sided")
+```
+Manual permutation test
+```{r}
+under_25_n <- Recidivism |> filter(Age25 == "Under 25") |> count() |> pull(n)
+over_25_n <- Recidivism |> filter(Age25 == "Over 25") |> count() |> pull(n)
+under_over_25_n <- under_25_n + over_25_n
+recid_days <- Recidivism$Days
+N <- 10^4 - 1
+
+obs_stat2 <- car::Tapply(Days ~ Age25, mean, na.rm=TRUE, data=Recidivism) |> 
+  diff() |> 
+  abs()
+```
+
+```{r}
+man_perm_null <- map_dbl(1:N, \(x) {
+  idx <- sample(under_over_25_n, size=over_25_n, replace=TRUE)
+  mean(recid_days[idx], na.rm=TRUE) - mean(recid_days[-idx], na.rm=TRUE)
+})
+```
+
+Visualise the null-distribution
+```{r}
+ggplot() +
+  geom_histogram(aes(x=man_perm_null)) +
+  geom_vline(xintercept = obs_stat2, color='red', linetype="dashed")
+```
+
+What proportion of the null-distrbution results are equal to or more extreme than the observed mean difference?
+```{r}
+(sum(man_perm_null >= obs_stat2) + 1) / (N+1) * 2
+```
+
+A permutation test on the observed mean difference of 30 days between under 25 and over 25 is statistically significant with a p-value of 0.0002. The observed difference is unlikely due to changea and the null-hypothesis of no difference is rejected.
+
+## 3.12
+
+The file Phillies2009 contains data from the 2009 season for the baseball team the Philadelphia Phillies.
+
+**a. Compare the empirical distribution functions of the number of strikeouts per game (StrikeOuts) for games played at home and games played away (Location).**
+
+```{r}
+Phillies2009 |> 
+  select(StrikeOuts, Location) |> 
+  summary()
+```
+```{r}
+Phillies2009 |> 
+  ggplot(aes(x=StrikeOuts, color=Location)) +
+  stat_ecdf()
+```
+The proportions of strike-outs for location varies with the number of strike-outs. Between 4 and 8 strike-outs, the proportion is higher for home compared to away.
+ 
+```{r}
+library(lattice)
+library(latticeExtra)
+ecdfplot(~StrikeOuts, groups=Location, auto.key=list(lines=TRUE), grid=TRUE, data=Phillies2009)
+
+```
+
+What does the density plot look like?
+```{r}
+Phillies2009 |> 
+  ggplot(aes(x=StrikeOuts, color=Location)) +
+  geom_density()
+```
+The density plot shows a higher number of strike ous for away compared to home.
+
+
+**b. Find the mean number of strikeouts per game for the home and the away games.**
+
+```{r}
+car::Tapply(StrikeOuts ~ Location, mean, data=Phillies2009)
+```
+
+**c. Perform a permutation test to see if the difference in means is statistically discernible.**
+
+Using `infer`
+```{r}
+obs_diff_so <- Phillies2009 |> 
+  specify(StrikeOuts ~ Location) |> 
+  calculate(stat="diff in means", order=c("Away", "Home"))
+obs_diff_so
+```
+
+```{r}
+null_dis_so <- Phillies2009 |> 
+  specify(StrikeOuts ~ Location) |> 
+  hypothesise(null = "independence") |> 
+  generate(reps = 1000, type="permute") |> 
+  calculate(stat= "diff in means", order=c("Home", "Away"))
+
+null_dis_so |> 
+  visualise() +
+  shade_p_value(obs_diff_so, direction="two_sided")
+```
+Get the p-value
+```{r}
+null_dis_so |> 
+  get_p_value(obs_diff_so, direction="two_sided")
+```
+
+```{r}
+# manul permutation test
+away_n <- Phillies2009 |> filter(Location == "Away") |> count() |>  pull(n)
+home_n <- Phillies2009 |> filter(Location == "Home") |> count() |>  pull(n)
+away_home_n <- away_n + home_n
+strikeouts <- Phillies2009$StrikeOuts
+N <- 10^4 -1 
+
+obs_diff_so2 <- car::Tapply(StrikeOuts ~ Location, mean, data=Phillies2009) |> 
+  diff() |> 
+  abs()
+obs_diff_so2
+```
+
+```{r}
+man_perm_so_null <- map_dbl(1:N, \(x) {
+  idx <- sample(away_home_n, size=away_n, replace = TRUE)
+  mean(strikeouts[idx]) - mean(strikeouts[-idx])  
+}) 
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=man_perm_so_null)) +
+  geom_vline(xintercept = obs_diff_so2, color='red', linetype="dashed")
+```
+Calculate the proportion of null-distribution results that are equal to or more extreme than the observed mean difference.
+```{r}
+(sum(man_perm_so_null >= obs_diff_so2) + 1) / (N+1) * 2
+```
+
+## 3.13 
+
+The data set Oscars contains the names of the Academy Awards best actor and best actress winners from 1928 through 2021.
+
+```{r}
+Oscars |> 
+  head()
+```
+
+
+**a. Compute summary statistics and create a graph of the ages grouped by gender and comment on what you observe.**
+
+```{r}
+ecdfplot(~Age, groups=Gender, auto.key=list(lines=TRUE), data=Oscars)
+```
+There are more younger women compared to men.
+
+
+```{r}
+bwplot(Age ~ Gender, data=Oscars)
+```
+**b. Is it appropriate to perform a permutation test to determine if the difference in mean ages between the actors and actresses is statistically discernible? If yes, perform the test and interpret the result. If not, why not?**
+
+```{r}
+obs_age_diff <- Oscars |> 
+  specify(Age ~ Gender) |> 
+  calculate(stat="diff in means", order=c("Man", "Woman"))
+obs_age_diff
+```
+
+```{r}
+age_diff_null <- Oscars |> 
+  specify(Age ~ Gender) |> 
+  hypothesise(null = "independence") |> 
+  generate(reps = 1000, type="permute") |> 
+  calculate(stat="diff in means", order=c("Man", "Woman"))
+
+age_diff_null |> 
+  visualise() +
+  shade_p_value(obs_age_diff, direction="two_sided")
+```
+
+Get the p-value
+```{r}
+age_diff_null |> 
+  get_pvalue(obs_age_diff, direction = "two_sided")
+```
+
+## 3.14
+
+The file Cafeteria contains measurements on ingredients in a sample of dishes served in a college cafeteria (Stephenson, private communication); the dishes are also classified by type: meat or vegetarian.
+
+**a. Create a plot to compare the distribution of fiber (in grams) between the meat and vegetarian dishes. Also, compute the mean and standard deviation.**
+
+```{r}
+Cafeteria |> 
+  summary()
+```
+```{r}
+ecdfplot(~Fiber, groups=Type, auto.key=list(lines=TRUE), data=Cafeteria)
+```
+The fiber content in meat is less than that of vegetarian.
+It is more likely to observe meat with a fiber content of 2 compared with vegetarian.
+
+```{r}
+bwplot(Fiber ~ Type, data=Cafeteria)
+```
+The median fiber content is lower in meat compared to vegetarian. The spread of fiber content is wider in vegetarian compared with meat.
+
+```{r}
+Cafeteria |> 
+  group_by(Type) |> 
+  summarise(mean_fiber=mean(Fiber), sd_fiber=sd(Fiber)) |> 
+  mutate(across(is.numeric, .fns = \(x) round(x, 3)))
+```
+**b. Perform a permutation test to see if the difference in means is statistically discernible.**
+
+Perform a Student's t-test.
+```{r}
+t.test(Fiber ~ Type, data=Cafeteria)
+```
+Perform a permutation test using `infer`
+```{r}
+obs_fiber_diff <- Cafeteria |> 
+  specify(Fiber ~ Type) |> 
+  calculate(stat="diff in means", order=c("Meat", "Vegetarian"))
+obs_fiber_diff
+```
+
+```{r}
+fiber_null <- Cafeteria |> 
+  specify(Fiber ~ Type) |> 
+  hypothesise(null="independence") |> 
+  generate(reps=1000, type="permute") |> 
+  calculate(stat="diff in means", order=c("Meat", "Vegetarian"))
+
+fiber_null |> 
+  visualise() +
+  shade_p_value(obs_stat=obs_fiber_diff, direction="two_sided")
+```
+
+Obtain p-value
+```{r}
+fiber_null |> 
+  get_p_value(obs_stat = obs_fiber_diff, direction="two_sided")
+```
+
+**c. Note an outlier in the meat sample. If this observation is removed, do you think this would increase or decrease the difference in means? Try to answer this without doing a calculation, then check your answer.**
+
+Removing the outlier will decrease the mean.
+
+```{r}
+Cafeteria |> 
+  filter(Fiber < 10) |> 
+  group_by(Type) |> 
+  summarise(mean=mean(Fiber, na.rm=TRUE), sd=sd(Fiber, na.rm=TRUE))
+```
+The mean fiber content of meat in the original data is 2.06 and after removing the outlier, it is 1.65.
+
+Repeating the permutation test without the outlier.
+```{r}
+obs_fiber_diff <- Cafeteria |> 
+  filter(Fiber < 10) |> 
+  specify(Fiber ~ Type) |> 
+  calculate(stat="diff in means", order=c("Meat", "Vegetarian"))
+obs_fiber_diff
+```
+
+```{r}
+fiber_null <- Cafeteria |> 
+  filter(Fiber < 10) |> 
+  specify(Fiber ~ Type) |> 
+  hypothesise(null="independence") |> 
+  generate(reps=1000, type="permute") |> 
+  calculate(stat="diff in means", order=c("Meat", "Vegetarian"))
+
+fiber_null |> 
+  visualise() +
+  shade_p_value(obs_stat=obs_fiber_diff, direction="two_sided")
+```
+
+```{r}
+fiber_null |> 
+  get_p_value(obs_stat = obs_fiber_diff, direction="two_sided")
+```
+
+The p-value is 0 after removing the outlier.
+
+## 3.15
+Knee pain is a common problem for which there is no agreement on the best treatment. Researchers in the Netherlands conducted a study (van Linschoten et al., 2009) in which participants between 14 and 40 years of age with patellofemoral pain syndrome were randomized to either exercise therapy (supervised by a physical therapist) or “usual care” (typically, wait‐and‐see). Patients were excluded if they had knee osteoarthritis, previous knee injuries or surgery or other defined pathological conditions of the knee. After 12 months, 36 out of the 58 patients who followed the exercise program reported they had recovered compared to 30 out of the 59 patients in the control group. Perform a permutation test to see if the difference in proportions is statistically discernible.
+
+```{r}
+txt_n <- 58
+ctrl_n <- 59
+txt <- rep(c("Yes", "No"), c(36, 22))
+ctrl <- rep(c("Yes", "No"), c(30, 29))
+txt_y <- 36
+txt_n <- 22
+ctrl_y <- 30
+ctrl_n <- 29
+```
+36 22
+30 29
+
+```{r}
+matrix(c(36, 22, 30, 29), nrow=2, byrow = TRUE, dimnames = list(exposure=c("Yes", "No"), response=c("Yes", "No"))) |> 
+  chisq.test() 
+```
+
+```{r}
+# observed difference in response txt - ctrl
+obs_diff_prop <- mean(txt == "Yes") - mean(ctrl == "Yes")
+
+# combine the two
+txt_ctrl <- c(txt, ctrl)
+txt_ctrl_n <- length(txt_ctrl)
+
+N <- 10^4 -1 
+
+knee_null <- map_dbl(1:N, \(x) {
+  idxs <- sample(txt_ctrl_n, size=txt_n, replace=TRUE)
+  mean(txt_ctrl[idxs] == "Yes") - mean(txt_ctrl[-idxs] == "Yes") 
+})
+
+```
+
+
+```{r}
+ggplot() + 
+  geom_histogram(aes(x=knee_null)) +
+  geom_vline(xintercept = obs_diff_prop, color='red', linetype="dashed")
+```
+
+Get p-value
+```{r}
+(sum(knee_null >= obs_diff_prop) + 1) / (N+1) * 2
+```
+
+The difference in proportion is not statistically discernible with a p-value of 0.367. The observed difference is due to chance.
+
+## 3.16
+Referring to the study in Example 3.9, another survey question asked participants how often they attended religious services. Of the 2475 Blacks from Generation X, 31% responded weekly or more compared to 23% of the 2094 Black Millennials. Is this difference of 8% statistically discernible?
+
+gen_x = 767 weekly or more (2475)
+gen_m = 482 weekly or more (2094)
+
+```{r}
+# weekly or more = 1
+gen_x <- rep(c(1, 0), c(767, 2475-767))
+gen_m <- rep(c(1,0), c(482, 2094-482))
+obs_diff <- .31-.23
+obs_diff
+```
+
+```{r}
+gen_x_n <- length(gen_x)
+gen_m_n <- length(gen_m)
+gen_x_m <- c(gen_x, gen_m)
+gen_x_m_n <- length(gen_x_m)
+
+N <- 10^4 -1 
+
+gen_null <- map_dbl(1:N, \(x) {
+  idx <- sample(gen_x_m_n, size=gen_x_n, replace=TRUE)
+  mean(gen_x_m[idx]) - mean(gen_x_m[-idx])
+})
+```
+
+```{r}
+ggplot() + 
+  geom_histogram(aes(x=gen_null)) +
+  geom_vline(xintercept = obs_diff, color="red", linetype="dashed")
+```
+
+Get p-value
+```{r}
+(sum(gen_null >= obs_diff) + 1) / (N+1) * 2
+```
+
+The p-value is 0.0002 indicating strong evidence that the difference in the observed proportion is unlikely due to chance. Therefore the null-hypothesis is rejected.
+
+## 3.17
+Patients with the bacteria Staphylococcus aureus in the nose are at an increased risk for infection. Researchers conducted a study to determine if by rapidly identifying nasal carriers of this bacteria and treating these patients with a mupirocin nasal ointment and chlorhexidine soap is effective in the risk of hospital‐associated S. aureus infection. In a double‐blind trial (Bode et al., 2010), 917 patients were identified with carrying this bacteria in their nose. Of these 504 were randomly assigned to receive the mupirocin/chlorhexidine treatment, while the remaining 413 received a placebo ointment and soap. At the end of the study, 17 (3.4%) in the treatment group and 32 (7.7%) in the placebo group had hospital‐acquired S. aureus infections. Perform a permutation test to see if the difference in proportions could be due to chance variability.
+
+```{r}
+txt_n <- 504
+ctl_n <- 413
+obs_diff <- 17/txt_n - 32/ctl_n
+obs_diff
+```
+
+```{r}
+txt_grp <- rep(c(1,0), c(17, 504-17))
+ctl_grp <- rep(c(1,0), c(32, 413-32))
+txt_ctl <- c(txt_grp, ctl_grp)
+txt_ctl_n <- length(txt_ctl)
+
+staph_null <- map_dbl(1:N, \(x) {
+  idx <- sample(txt_ctl_n, size=txt_n, replace=TRUE)
+  mean(txt_ctl[idx]) - mean(txt_ctl[-idx])
+})
+
+```
+
+```{r}
+ggplot() +
+  geom_histogram(aes(x=staph_null)) +
+  geom_vline(xintercept = obs_diff, color="red", linetype="dashed")
+```
+
+Get p-value
+```{r}
+(sum(staph_null <= obs_diff) + 1) / (N+1) * 2
+```
+
+The observed difference is statistically significant with a p-value of 0.004.
+
+## 3.18
+
+In the Iowa recidivism case study in Section 1.4, offenders had originally been convicted of either a felony or a misdemeanor.
+
+**a. Use R to create a table displaying the proportion of felons who recidivated and the proportion of those convicted of a misdemeanor who recidivated.**
+
+```{r}
+Recidivism |> 
+  select(Offense, Recid) |> 
+  table() |> 
+  prop.table(1) |> 
+  round(4)
+```
+Using infer
+```{r}
+obs_diff <- Recidivism |> 
+  specify(Recid ~ Offense, success = "Yes") |> 
+  calculate(stat = "diff in props", order=c("Felony", "Misdemeanor")) |> 
+  pull(stat)
+obs_diff
+```
+
+**b. Determine whether or not the difference in recidivism proportions computed in (a) is statistically discernible.**
+
+```{r}
+recid_null <- Recidivism |> 
+  specify(Recid ~ Offense, success="Yes") |> 
+  hypothesise(null="independence") |> 
+  generate(reps=1000, type="permute") |> 
+  calculate(stat = "diff in props", order=c("Felony", "Misdemeanor"))
+
+recid_null |> 
+  visualise() +
+  shade_p_value(obs_stat = obs_diff, direction="two_sided")
+```
+
+Get p-value
+```{r}
+recid_null |> 
+  get_pvalue(obs_stat = obs_diff, direction="two_sided")
+```
+Since the p-value is 0.064, which is larger than 0.05, we fail to reject the null-hypothesis that the proportions are the same.
+
+Check using a chi-square test
+```{r}
+Recidivism |> 
+  select(Offense, Recid) |> 
+  table() |> 
+  chisq.test()
+```
+The chisquare test yielded same conclusion with p-value of 0.06.
+
+## 3.19
+
+According to the Centers for Disease Control and Prevention (CDC), the 10th percentile of birth weights for baby girls is 2747 g. Referring to the data set Girls2004 (see the case study in Section 1.2), what proportion of the babies born in Alaska are under this weight? In Wyoming? Conduct a permutation test to see if this difference in proportions could be explained by chance variability.
+
+```{r}
+Girls2004 |> 
+  summary()
+```
+Visualise the distribution
+```{r}
+Girls2004 |> 
+  ggplot(aes(x=Weight, color=State)) +
+  stat_ecdf() +
+  geom_vline(xintercept = 2747, color='red', linetype="dashed")
+```
+
+Based on the empirical cumulative distribution function, a higher proportion of births in Wyoming are born less than 2747g compared to Alaska.
+
+```{r}
+bw_10pct <- 2747
+
+obs_diff <- Girls2004 |> 
+  group_by(State) |> 
+  summarise(prop=mean(Weight < bw_10pct)) |> 
+  pull(prop) |> 
+  diff() |> 
+  set_names("WY-AK")
+
+obs_diff
+```
+
+Using infer
+
+```{r}
+bw_null <- Girls2004 |> 
+  mutate(wt_10pct = if_else(Weight < bw_10pct, "Yes", "No")) |> 
+  specify(wt_10pct ~ State, success="Yes") |> 
+  hypothesise(null="independence") |> 
+  generate(reps=1000, type="permute") |> 
+  calculate(stat = "diff in props", order=c("WY", "AK"))
+
+bw_null |> 
+  visualise() +
+  shade_p_value(obs_diff, direction="two_sided")
+```
+
+Get p-value
+```{r}
+bw_null |> 
+  get_p_value(obs_diff, direction = "two_sided")
+```
+
+The difference in the observed proportions is not statistically significant and is the result of chance. Therefore, we fail to reject the null-hypothesis.
+
+## 3.20
+
+Does chocolate ice cream have more calories than vanilla ice cream? The data set IceCream contains calorie information for a sample of brands of chocolate and vanilla ice cream.
+
+**a. Inspect the data set, then explain why this is an example of matched pairs data.**
+
+```{r}
+IceCream |> 
+  summary()
+```
+```{r}
+IceCream |> 
+  sample_n(10)
+```
+It is a matched pairs of data because vanilla and chocolate icecream comes from the same brand.
+
+Using `infer`
+```{r}
+obs_diff <- IceCream |> 
+  mutate(diff = ChocolateCalories - VanillaCalories) |> 
+  select(diff) |> 
+  summarise(mean=mean(diff)) |> 
+  pull(mean)
+obs_diff
+```
+
+```{r}
+paired_null <- IceCream |> 
+    mutate(diff = ChocolateCalories - VanillaCalories) |> 
+  specify(response = diff) |> 
+  hypothesise(null = "paired independence") |> 
+  generate(reps=1000, type="permute") |> 
+  calculate(stat="mean")
+
+paired_null |> 
+  visualise() +
+  shade_p_value(obs_diff, direction = "two_sided")
+```
+
+Get p-value
+```{r}
+paired_null |> 
+  get_pvalue(obs_diff, direction = "two_sided")
+```
+
+## 3.21
+Is there a difference in the mean price of groceries sold by Target and Walmart? The data set Groceries contains a sample of grocery items and their prices advertised on their respective websites on one specific day.
+
+**a. Inspect the data set, then explain why this is an example of matched pairs data.**
+
+

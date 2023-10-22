@@ -1,0 +1,743 @@
+---
+title: "Chapter 02 - Exercises"
+format: 
+  html:
+    self-contained: true
+    code-fold: true
+---
+
+```{r}
+#| echo: false
+#| message: false
+
+library(resampledata3)
+library(tidyverse)
+```
+
+## 2.1
+Compute the mean and median of 3, 5, 8, 15, 20, 21, 24. Then apply the logarithm to the data and compare the mean and median to the original data.
+
+```{r}
+dat <- c(3, 5, 8, 15, 20, 21, 24)
+r1 <- list(mean=mean, median=median) |> 
+  map(\(x) x(dat))
+r1
+```
+```{r}
+list(mean=mean, median=median) |> 
+  map(\(x) x(log(dat)))
+```
+Is the logarithm of the original mean and median the same has the mean and median of the logarithmed data?
+```{r}
+r1 |> 
+  map(\(x) log(x))
+```
+The median is the same, but not the mean.
+
+## 2.2
+Compute the mean and median of 1, 2, 4, 5, 6, 8, 11, 15. Let $f(x) = \sqrt{x}$. Apply the transformation to the data and compute the mean and median.
+
+```{r}
+dat2 <- c(1, 2, 4, 5, 6, 8, 11, 15)
+funs <- list(mean=mean, median=median)
+r2 <- map(funs, \(x) x(dat2))
+r2
+```
+Transformed data mean and median
+```{r}
+map(funs, \(x) x(sqrt(dat2)))
+```
+```{r}
+r2 |> 
+  map(\(x) sqrt(x))
+```
+The median is the same, but not the mean.
+
+Are there any condition where the transformed mean of a set of values is equal to the mean of a set of transformed values.
+When the function is a linear function.
+```{r}
+fx <- function(x) 2*x + 1
+mean(fx(dat))
+```
+```{r}
+fx(mean(dat))
+```
+
+For median, refer to this chatgpt response:
+The median of a transformed list of values is equal to the transformed median of the original list of values if and only if the function `f()` is a monotonically increasing or decreasing function.
+
+A monotonically increasing function is a function that preserves or reverses the order of values. If `a <= b` then `f(a) <= f(b)`. Similarly, a monotonically decreasing function will have `f(a) >= f(b)` if `a <= b`.
+
+Examples of monotonically increasing functions are `f(x) = x + 5` and `f(x) = x^2` (for x>=0). An example of a monotonically decreasing function is `f(x) = -x`.
+
+So, if `f()` is monotonically increasing or decreasing, `median(f(x))` = `f(median(x))`. But if `f()` is non-monotonic function such as `f(x) = sin(x)`, then `median(f(x))` will not generally equal `f(median(x))`.
+
+## 2.4
+
+**a. Create a barchart and table of the departure times**
+
+```{r}
+fds <- FlightDelays
+```
+
+```{r}
+fds |> 
+  select(DepartTime) |> 
+  table()
+```
+
+Reorder the levels to:
+4-8am, 8-Noon, Noon-4pm, 4-8pm, 8-Mid
+```{r}
+fds$DepartTime <- factor(fds$DepartTime, levels = c("4-8am", "8-Noon", "Noon-4pm", "4-8pm", "8-Mid"))
+table(fds$DepartTime)
+```
+
+
+```{r}
+fds |> 
+  ggplot(aes(x=DepartTime)) +
+  geom_bar()
+```
+
+Most flights happen between 8am to 8pm.
+
+**Create a contingency table of Day and Delayed30. For each day, what is the proportion of flights delayed by at least 30 minutes?**
+
+```{r}
+# reorder the Day levels
+fds$Day <- factor(fds$Day, levels=c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+```
+
+
+```{r}
+fds |>
+  select(Day, Delayed30) |> 
+  table() |> 
+  prop.table(1) |> 
+  round(3)
+```
+The row percentages represents the proprtion of delays amongst each day of the week.
+On Friday, the proportion of delay is 0.23, P(D=Yes|Friday) = 0.23
+
+```{r}
+fds |>
+  select(Day, Delayed30) |> 
+  table() |> 
+  prop.table(2) |> 
+  round(3)
+```
+The column percentages represents the distribution of days amongst whether the flights are delayed or not.
+With flights that are delayed, the highest proportion is on Friday. P(Day=Friday|D=Yes) = 0.24.
+
+Based on both the column and row percentages, Thursdays and Fridays are associated with delays of more than 30 minutes.
+
+**c. Create side‐by‐side boxplots of the lengths of the flights, grouped by whether or not the flight was delayed at least 30min.**
+
+```{r}
+fds |> 
+  select(FlightLength, Delayed30) |> 
+  ggplot(aes(x=Delayed30, y=FlightLength)) +
+  geom_boxplot()
+```
+The median flight lengths are similar between the two groups. Compared with no delays, the delayed flights have a smaller spread and have more outliers compared to no delays.
+The flight length of delayed flights are no different compared to no delays.
+
+```{r}
+fds |> 
+  group_by(Delayed30) |> 
+  summarise(across(FlightLength, .fns=list(mean=mean, sd=sd,
+                                           median=median,
+                                           IQR_25=\(x) quantile(x, prob=.25),
+                                           IQR_75=\(x) quantile(x, prob=.75))))
+```
+## 2.5
+
+```{r}
+gss2018 <- GSS2018
+gss2018 |> 
+  names()
+```
+
+**a. Create a table and a bar chart of the responses to the question about the death penalty.**
+```{r}
+gss2018 |> 
+  select(DeathPenalty) |> 
+  table()
+```
+
+```{r}
+gss2018 |> 
+  filter(!is.na(DeathPenalty)) |> 
+  ggplot(aes(x=DeathPenalty)) +
+  geom_bar() +
+  labs(title='Death penalty preference')
+```
+More people are in favor of, than opposing the dealth penalty.
+
+**b. Use the table function and add the argument exclude = NULL in R on the Courts variable (“Do you think the courts deal too harshly with criminals?”) What additional information does this provide?**
+
+```{r}
+gss2018 |> 
+  pull(Courts) |> 
+  table(exclude = NULL)
+```
+
+There are 16 missing views in this variable. A majority of people feels that the courts are not harsh enough on criminals. Perhaps this view has influenced their decision on favoring more for the death penalty.
+
+```{r}
+gss2018 |> 
+  pull(Courts) |> 
+  table(exclude = NULL) |> 
+  prop.table()
+```
+
+Over 50% of people surveyed feels that the courts are not harsh enough on criminals.
+
+**c. Create a contingency table displaying the relationship between opinions about the courts to that about the death penalty.**
+
+```{r}
+gss2018 |> 
+  select(Courts, DeathPenalty) |> 
+  table() |> 
+  prop.table(1)
+```
+The proportion of those who favor death penalty is highest amongst those who feel that the courts are not harsh enough on criminals.
+P(DP=Yes|Courts views) is highest in those with views of "Not harsh enough"
+
+
+```{r}
+gss2018 |> 
+  select(Courts, DeathPenalty) |> 
+  table() |> 
+  prop.table(2)
+```
+Comparing the distributions of court views between favour and oppose, those with views of "Not harsh enough" is higher compared to those oppose.
+
+**d. What proportion of those who think the courts are not harsh enough with criminals favor the death penalty? Does it appear to be different from the proportion among those who think the courts are too harsh?**
+The proportion of those who think the courts are not harsh enough with criminals favor the death penalty is 0.74. The proportion among those who think the courts are too harsh that favors death penalty is 0.41. There is a marked difference between those who favor death penalty in these two different views of the court.
+
+## 2.6
+
+**a. Create a table and bar chart of the Recid variable.**
+```{r}
+recid <- Recidivism
+summary(recid)
+```
+```{r}
+recid |> 
+  pull(Recid) |> 
+  table()
+```
+```{r}
+recid |> 
+  ggplot(aes(x=Recid)) +
+  geom_bar() +
+  labs(title = 'Recidivism')
+```
+Majority of criminals released did not re-commit for the follow-up period.
+
+**b. Create a contingency table summarizing the relationship between recidivism (Recid) by age (Age25). Of those under 25 years of age, what proportion were sent back to prison? Of those over 25 years of age, what was this proportion?**
+
+```{r}
+recid |> 
+  select(Age25, Recid) |> 
+  table() |> 
+  addmargins()
+```
+What is the risk of been under 25 compared to been sent back to prison vs not been sent back?
+
+What is the risk of been sent back to prison if under 25 compared to over 25?
+```{r}
+1112/3077/(4263/13942)
+```
+
+What is the risk of been under 25 if have been sent back to prison compared to not been sent back?
+```{r}
+1123/5386/(1954/11633)
+```
+
+What is the odds ratio of been sent back to prison for under 25 compared to over 25?
+```{r}
+1123/1954/(4263/9679)
+```
+
+What is the odds ratio of been under 25 compared been sent back to prison or not.
+```{r}
+1123/4263/(1954/9679)
+```
+
+Risk ratio: ratio of the probability of outcome in exposure to probability of outcome in non-exposure.
+
+```{r}
+recid |> 
+  select(Age25, Recid) |> 
+  table() |> 
+  prop.table(1) |> 
+  round(2)
+```
+Of those under age 25, the proportion that were sent back to prison is 0.36.
+For those over age 25, the proportion is 0.31.
+Therefore, the probability of been sent back to prison is higher for under 25s compared to over 25s.
+
+```{r}
+recid |> 
+  select(Age25, Recid) |> 
+  table() |> 
+  prop.table(2) |> 
+  round(2)
+```
+The proportion of under 25 is higher for been sent back to prison compared to those who haven't.
+
+**c. Create side‐by‐side boxplots of the number of days to recidivism grouped by type of violation (Type), and give three comparative statements about the distributions.**
+
+```{r}
+recid |> 
+  select(Type, Days) |> 
+  ggplot(aes(x=Type, y=Days)) + 
+  geom_boxplot()
+```
+
+The distribution of "New" offence appears uniform. The distribution of "Tech" is right skewed  with outliers. There is a difference between the median days to any offense. There are no days to recidism in those who have not committed any offense following release.
+
+**d. Use the quantile function to obtain the quartiles of the number of days to recidivism. Since there are missing values (NA) for those released offenders who had not recidivated, you will need to add the argument na.rm = TRUE to the quantile command to exclude those observations.**
+
+```{r}
+recid |> 
+  pull(Days) |> 
+  quantile(probs = c(0, 0.25, 0.5, 0.75, 1), na.rm=TRUE)
+```
+
+Half of any offense is committed after 418 days following prison release. About 75% of offense are committed by days 687 following release.
+
+```{r}
+recid$Days |> range(na.rm=TRUE)
+```
+
+**e. Create ecdfs of days to recidivism for those under 25 years of age and those 25 years of age or older. Approximately what proportion in each age group were sent back to prison 400 days after release? Note: stat_ecdf automatically removes the missing values (that is, the NA's, so your sentence should reflect that: “of those who relapsed…”).**
+
+```{r}
+recid |> 
+  ggplot(aes(x = Days, color=Age25)) + 
+  stat_ecdf() +
+  geom_vline(xintercept = 400, color='black')
+```
+
+At 400 days, approximately a little over 50% of those under 25 are sent back to prison compared to a little under 50% of those over 25.
+
+##2.7
+```{r}
+sp <- Spruce
+summary(sp)
+```
+**a . Compute the numeric summaries for the height changes (Ht.change) of the seedlings.**
+
+```{r}
+sp |> 
+  summarise(across(c(Ht.change), .fns=list(mean=mean, sd=sd, 
+                                           median=median,
+                                           IQR_25 = \(x) quantile(x, probs = .25),
+                                           IQR_75 = \(x) quantile(x, probs = .75))))
+```
+The mean height change is 30.9 with standard deviation of 11.0. The median is 30.1 with IQR of 15.
+
+**b. Create a histogram and normal quantile plot for the height changes of the seedlings. Is the distribution approximately normal?**
+
+```{r}
+sp |> 
+  ggplot(aes(x=Ht.change)) +
+  geom_histogram(binwidth = 4)
+```
+
+```{r}
+sp |> 
+  ggplot(aes(sample=Ht.change)) +
+  geom_qq() +
+  geom_qq_line()
+```
+The distribution appears normally distributed on the histogram and the qq plot demonstrates a near straight line.
+
+**c. Create a boxplot to compare the distribution of the change in diameters of the seedlings (Di.change) grouped by whether or not they were in fertilized plots.**
+```{r}
+sp |> 
+  ggplot(aes(x=Fertilizer ,y=Di.change)) +
+  geom_boxplot()
+```
+There is a significant difference between the median of diameter change between fertilised and non-fertilised group.
+
+**d. Use the tapply function to find the numeric summaries of the diameter changes for the two levels of fertilization.**
+
+```{r}
+tapply(sp$Di.change, sp$Fertilizer, FUN=mean)
+```
+
+```{r}
+sp |> 
+  group_by(Fertilizer) |> 
+  summarise(across(Di.change, .fns=list(mean=mean, sd=sd, median=median)))
+```
+
+```{r}
+library(psych)
+# sp |> 
+#   group_by(Fertilizer) |> 
+#   select(Di.change) |> 
+#   mutate(s = map(\(x) describe(x$Di.change)))
+describe(sp$Di.change)
+sp |> 
+  group_by(Fertilizer) |>
+  summarise(across(Di.change, .fns=list(describe = \(x) describe(x)))) |> 
+  unnest() |> 
+  select(Fertilizer, n, mean, sd, median, min,max, skew, kurtosis)
+```
+
+**e. Create a scatter plot of the height changes against the diameter changes, and describe the relationship.**
+```{r}
+sp |> 
+  ggplot(aes(x=Di.change, y=Ht.change)) +
+  geom_point()
+```
+The scatterplot of height change against diameter change demonstrates a positive linear relationship.
+
+## 2.8
+```{r}
+mads <- MobileAds
+summary(mads)
+```
+
+**a. Create histograms of the variables m.cpc_pre and m.cpc_post, and describe their distributions.**
+
+```{r}
+mads |> 
+  select(starts_with('m.cpc_')) |> 
+  pivot_longer(cols = everything(), names_to = "type", values_to = "values") |> 
+  ggplot(aes(x=values)) +
+  geom_histogram() +
+  facet_wrap(~type)
+```
+
+The distribution of m.cpc.pre and m.cpc.post are right skewed.
+
+**b. Compute the difference between these two variables, create a histogram, and describe this distribution.**
+
+```{r}
+mads |> 
+  mutate(diff.m.cpc = m.cpc_post - m.cpc_pre) |> 
+  ggplot(aes(x=diff.m.cpc)) +
+  geom_histogram(binwidth = 0.5)
+```
+The distribution of the difference between post and pre m.cpc is symmetrical with a marked peak at around 0.
+
+```{r}
+mads |> 
+  mutate(diff = m.cpc_post - m.cpc_pre) |> 
+  pull(diff) |> 
+  describe()
+```
+
+**c. Create a normal quantile plot of the difference. Does it appear to be normally distributed?**
+
+```{r}
+mads |> 
+  mutate(diff = m.cpc_post - m.cpc_pre) |> 
+  ggplot(aes(sample = diff)) +
+  geom_qq() +
+  geom_qq_line()
+
+  
+```
+The quantile plot demonstrate near normal of between -1 and 1 and beyond these there is deviation from normality indicating heavy tails towards the ends of the distribution.
+
+## 2.10
+The exponential distribution with parameter λ has a probability density function given by `f(x) = λe^(-λx)`. The median, often denoted by `m`, is the value for which the cumulative distribution function (CDF) equals 0.5. For an exponential distribution, the cumulative distribution function is `F(x) = 1 - e^(-λx)`.
+
+Setting this equal to 0.5 and solving for `x` gives us the following:
+
+```
+1 - e^(-λx) = 0.5
+e^(-λx) = 0.5
+-λx = ln(0.5)
+x = ln(0.5) / -λ
+```
+
+Thus, the median of an exponential distribution with rate parameter λ is given by `ln(2) / λ` or approximately `0.693 / λ`.
+
+The Pareto distribution with shape parameter α > 0 has a probability density function (PDF) defined by  `f(x) = α/x^(α+1)` for `x ≥ 1`.
+
+The median, often denoted by `m`, is the value for which the cumulative distribution function (CDF) equals 0.5. For a Pareto distribution, the cumulative distribution function is given by `F(x) = 1 - (1/x^α)`.
+
+Setting this equal to 0.5 and solving for `x` gives us the following:
+
+```
+1 - (1/x^α) = 0.5
+1/x^α = 0.5
+x^α = 2
+x = 2^(1/α)
+```
+
+So, the median of a Pareto distribution with shape parameter α is `2^(1/α)`.
+
+## 2.11
+The Cauchy distribution is well-known in statistics for having undefined or non-existing mean and variance. This is because its tails are too heavy; the way the distribution behaves at extreme values causes the integrals used in the calculations of the mean and variance not to converge.
+
+To illustrate, let's consider the formula for the mean of a distribution is essentially expected value `E(X) = ∫x*f(x)dx` over the entire possible range of `x`.
+
+In the case of the Cauchy distribution with pdf `f(x) = 1/(π*(1+(x-θ)^2))` where 'θ' is the location parameter, the formula for the mean becomes:
+
+```
+E(X) = ∫x*(1/(π*(1+(x-θ)^2))) dx, which extends from -∞ to +∞.
+```
+
+This integral turns out to be improper (i.e., it does not converge to a real number), because the weights of large positive values and large negative values cancel each other out, leading to a form of indeterminate form, which is a defining characteristic of the Cauchy distribution.
+
+Thus, it can be demonstrated that the expected value (or mean) of a Cauchy-distributed random variable does not exist.
+
+To show that 'θ' is the median of the distribution, we should show that the cumulative distribution function (CDF) equals to 0.5 at `x=θ`. 
+
+The cumulative distribution function (CDF) of a Cauchy distribution with location parameter 'θ' is given by `F(x) = (1/π) * arctan(x-θ) + 0.5`.
+
+Setting this equal to 0.5 and solving for `x` gives us:
+
+```
+0.5 = (1/π) * arctan(x-θ) + 0.5
+0 = arctan(x-θ)
+```
+
+The arctan function equals 0 at `x=0`, so:
+
+```
+x-θ = 0
+```
+thus,
+``` 
+x = θ
+```
+
+So, the median of a Cauchy distribution with location parameter θ is θ.
+
+## 2.12
+Find
+
+**a. the 30th and 60th percentiles for N(10, 17^2)**
+
+```{r}
+list(`30th`=0.3, `60th`=.6) |> 
+  map(\(x) qnorm(x, 10, 17))
+```
+**b. the 0.10 and 0.90 quantile for N(25, 32^2)**
+
+```{r}
+list(`30th`=0.1, `60th`=.9) |> 
+  map(\(x) qnorm(x, 25, 32))
+```
+**c. the point that marks off the upper 25% in N(25, 32^2).
+
+```{r}
+qnorm(.75, 24, 32)
+```
+
+```{r}
+mean_val <- 24
+sd_val <- 32
+
+df <- data.frame(x = seq(-100, 150, length.out = 1000))
+ggplot(df, aes(x = x)) + 
+  stat_function(fun = dnorm, args = list(mean = mean_val, sd = sd_val), colour = "blue") +
+  geom_vline(xintercept = 45.6, color='red', linetype=2) +
+  labs(title = "Normal Distribution", x = "X", y = "Density") +
+  theme_minimal()
+```
+
+## 2.13
+Quantiles of a distribution are the cut points that divide the range of a probability distribution into intervals with certain probabilities. The 0.05 quantile (sometimes also called the 5th percentile or lower 5%) is the point below which 5% of the observations fall.
+
+For an exponential distribution, the cumulative distribution function (CDF) is `F(t) = 1 - e^(-λt)`. To find where the 0.05 quantile falls, we can set this equal to 0.05 and solve for `t`.
+
+```
+1 - e^(-λt) = 0.05
+e^(-λt) = 0.95
+-λt = ln(0.95)
+t = ln(0.95) / -λ
+```
+
+Therefore, the 0.05 quantile of an exponential distribution with rate λ is given by `-ln(0.95)/λ`.
+
+**b. Let lambda=4 check with answer from (a) and check using qexp function
+```{r}
+-1 * log(0.95)/4
+```
+
+```{r}
+qexp(0.05, rate=4, lower.tail = TRUE)
+```
+
+```{r}
+lambda <- 4
+  
+# Create a vector of values, using the quantile function (qexp) to find the 0.05 quantile
+values <- data.frame(x = seq(0, qexp(0.95, rate = lambda), length.out = 1000))
+
+# Plot the exponential distribution
+p <- ggplot(values, aes(x = x)) +
+  stat_function(fun = dexp, args = list(rate = lambda), colour = "blue") +
+  geom_vline(aes(xintercept = qexp(0.05, rate = lambda)), linetype = "dashed", color = "red", size = 1) +
+  labs(title = "Exponential Distribution with lambda=4", x = "X", y = "Density") +
+  annotate("text", x = qexp(0.05, rate = lambda), y = 0.02, label = "0.05 quantile", color = "red") +
+  theme_minimal()
+  
+print(p)
+```
+## 2.14
+
+A quantile of a random variable is the value of the random variable that splits the cumulative distribution of the random variable into the specified proportions. Before we calculate the α/2 and (1-α)/2 quantiles, we should express x in terms of the cumulative distribution function (CDF).
+
+Given a continuous CDF `F(x) = x^2 / a^2` for `0 <= x <= a`, if we let `F(x) = p` where `p` is the percentile we interested in, then we can express `x` as a function of `p` by solving the equation `p = x^2 / a^2`. 
+
+After doing that, we get:
+```
+x = a*sqrt(p)
+```
+
+So, the α/2 and (1-α)/2 quantiles can be calculated by replacing `p` with α/2 and (1-α)/2 respectively.
+
+```
+x_{α/2} = a * sqrt(α/2)
+x_{1-α/2} = a * sqrt(1 - α/2)
+```
+
+That gives the quantiles for this distribution for any arbitrary percentile `α`.
+
+## 2.15
+A quantile of a certain random variable is the value of the random variable that splits the cumulative distribution (CDF) of the random variable into the specified proportions. In this scenario, you defined the cumulative distribution function (CDF) `F(x) = 1 - 9/x^2` for `x>=3`.
+
+Now let's express `x` in terms of cumulative probabilities `p`. If we set `F(x) = p`, then we can solve for `x` with this equation:
+
+```
+1 - 9/x^2 = p
+```
+
+Rearranging terms and then solving the equation for `x` yields that `x` equals:
+
+```
+x = sqrt(9 / (1 - p))
+```
+
+This expression gives the pth quantile of the given distribution.
+
+```{r}
+# define the function for CDF 
+cdf_function <- function(x){
+  1 - 9 / x^2
+}
+
+# create data frame 
+df <- data.frame(x = seq(3, 10, length.out = 1000))
+
+# plot
+ggplot(df, aes(x = x)) +
+  stat_function(fun = cdf_function, geom = "line", color = "blue") +
+  labs(title = "CDF Plot: 1 - 9/x^2 for x >=3", x = "X", y = "CDF") +
+  theme_minimal()
+```
+## 2.16
+Yes, there exists a `q` for which the cumulative distribution function `F(q) = 0.05` in a binomial distribution. The `q` is the smallest integer such that `F(q) >= 0.05`. 
+
+In R, the function `qbinom()` can be used to find this quantile. The `qbinom()` function finds the smallest number k such that `F(k) >= p` for a given probability `p` and for a binomial random variable with given size and probability parameters.
+
+In this case, with parameters size = 20 and prob = 0.3, and p = 0.05, use:
+
+```{r}
+q <- qbinom(0.05, size = 20, prob = 0.3)
+q
+```
+
+This will compute the `q` quantile for the binomial distribution such that `F(q) = 0.05`. The value of `q` will be the smallest integer such that the cumulative distribution function `F(q)` will be at least 0.05. If the actual `F(q)` is larger than 0.05 after calculation, it means there is no exact `q` that makes `F(q) = 0.05`, but it gets as close to 0.05 as possible in a discrete binomial distribution.
+
+## 2.17
+
+**a. Draw a random sample of size n=15 from N(0,1) and plot both a normal quantile plot and a histogram.  Do the points on the quantile plot appear to fall on a straight line? Is the histogram symmetric, unimodal, and bell shaped? Do this several times.**
+
+```{r}
+d <- list(15, 30, 60, 100) |> 
+  map(\(x) rnorm(x)) |> 
+  enframe() |> 
+  unnest(value) 
+
+d |> 
+  ggplot(aes(x=value)) +
+  geom_histogram() +
+  facet_wrap(~name)
+  
+
+```
+
+```{r}
+d |> 
+  ggplot(aes(sample=value)) +
+  stat_qq() +
+  stat_qq_line() +
+  facet_wrap(~name)
+```
+
+**c. What lesson do you draw about using graphs to assess whether or not a data set follows a normal distribution?**
+
+As the sample size increases, the shape of the histogram becomes more bell-shaped whereas with the qq plot, more points fall along the straight line.
+
+## 2.18
+Plot by hand the empirical cumulative distribution function for the set of values 4, 7, 8, 9, 9, 13, 18, 18, 18, 21.
+
+$$
+P(X <= 4) = \frac{1}{10} = 0.1\\
+P(X <= 7) = \frac{2}{10} = 0.2\\
+P(X <= 8) = \frac{3}{10} = 0.3\\
+P(X <= 9) = \frac{5}{10} = 0.5\\
+P(X <= 13) = \frac{6}{10} = 0.6\\
+P(X <= 18) = \frac{9}{10} = 0.9\\
+P(X <= 21) = \frac{10}{10} = 1.0\\
+$$
+
+```{r}
+data.frame(x=c(4, 7, 8, 9, 9, 13, 18, 18, 18, 21),
+           y=c(0.1, 0.2, 0.3, 0.5, 0.5, 0.6, 0.9, 0.9, 0.9,1.0)) |> 
+  ggplot(aes(x=x, y=y)) +
+  geom_line()
+```
+
+```{r}
+data.frame(x=c(4, 7, 8, 9, 9, 13, 18, 18, 18, 21),
+           y=c(0.1, 0.2, 0.3, 0.3, 0.5, 0.6, 0.9, 0.9, 0.9,1.0)) |> 
+  ggplot(aes(x = x)) +
+  stat_ecdf()
+```
+
+## 2.20 
+**The data set ChiMarathonMen has a sample of times for men between 20 and 39 years of age who completed the Chicago Marathon in 2015. Graph the ecdf's of the times for men in the 25–29‐age division and men in the 35–39‐age division. Approximately what proportion of men in these two divisions finished in 160 min or less?**
+
+```{r}
+ChiMarathonMen |> 
+  summary()
+```
+
+```{r}
+ChiMarathonMen |> 
+  filter(Division %in% c("25-29", "35-39")) |> 
+  ggplot(aes(x=FinishMin, color=Division)) +
+  stat_ecdf() +
+  geom_vline(xintercept = 160)
+```
+```{r}
+d <- ChiMarathonMen |> 
+  filter(Division %in% c("25-29", "35-39")) |> 
+  group_by(Division) |>
+  nest() |> 
+  mutate(ecd = map(data, \(x) ecdf(x$FinishMin))) |> 
+  mutate(d = map(ecd, \(x) x(160))) |> 
+  unnest(d)
+d
+```
+70% of those in the aged 25-29 finished by 160mins compared with 31.6% in the aged group of 35-39.
+
+```{r}
+dnorm()
+```
+
