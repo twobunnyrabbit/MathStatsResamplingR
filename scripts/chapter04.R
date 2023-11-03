@@ -58,3 +58,6 @@ pbinom(25, 120, 0.3)
 
 pbinom(170, 700, 0.236) - pbinom(150, 700, 0.236)
 
+# 4.3.2 Continuity correction for discrete random variable
+rbinom(10, 1, 0.5)
+rbinom(1, 10, 0.5)
