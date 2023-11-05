@@ -6,3 +6,127 @@ format:
     code-fold: true
 ---
 
+```{r}
+#| message: false
+#| echo: false
+
+library(resampledata3)
+library(tidyverse)
+```
+
+## 4.1
+Consider the population {1, 2, 5, 6, 10, 12}. Find (and plot) the sampling distribution of medians for samples of size 3 without replacement. Compare the median of the population to the mean of the medians.
+
+```{r}
+p <- c(1, 2, 4, 6, 10, 12)
+
+p_sampling_dist <- map_dbl(1:10^4, \(x) sample(p, 3, replace = FALSE) |> median())
+```
+
+Plot of the sampling distribution of the medians
+```{r}
+ggplot() +
+  geom_histogram(aes(x=p_sampling_dist), binwidth = 3.4) 
+```
+```{r}
+ggplot() +
+  stat_ecdf(aes(x=p_sampling_dist))
+```
+
+Mean of the medians
+```{r}
+p_sampling_dist |> mean()
+```
+
+Median of the population
+```{r}
+median(p)
+```
+
+## 4.2
+Consider the population {3, 6, 7, 9, 11, 14} For samples of size 3 without replacement, find (and plot) the sampling distribution of the minimum. What is the mean of the sampling distribution? The statistic is an estimate of some parameter – what is the value of that parameter?
+
+```{r}
+p4.2 <- c(3, 6, 7, 9, 11, 14)
+p4.2_sampling_dist <- map_dbl(1:10^4, \(x) sample(p4.2, 3, replace = FALSE) |> min())
+```
+
+Plot of the sampling distribution of the minimum
+```{r}
+ggplot() +
+  geom_density(aes(x=p4.2_sampling_dist))
+```
+Mean of the sampling distribution
+```{r}
+mean(p4.2_sampling_dist)
+```
+
+The statistic, estimate of the parameter, is 4.8.
+
+## 4.3
+Let $A$ denote the population ${1, 3, 4, 5}$ and $B$ the population ${5, 7, 9}$. Let $X$ be a random value from $A$, and $Y$ be a random value from $B$.
+
+a. Find the sampling distribution of $X+Y$.
+```{r}
+A <- c(1, 3, 4, 5)
+B <- c(5, 7, 9)
+n <- 3
+
+ab_sampling_dist_nr <- map_dbl(1:10^4, \(x) sample(c(A, B), n, replace = FALSE) |> mean())
+ab_sampling_dist_r <- map_dbl(1:10^4, \(x) sample(c(A, B), n, replace = TRUE) |> mean())
+```
+
+Plot of the sampling distributions
+
+```{r}
+df <- data.frame(r = ab_sampling_dist_r, nr = ab_sampling_dist_nr)
+df |> 
+  pivot_longer(cols = everything(), names_to = "sampling_method", values_to = "values") |> 
+  ggplot(aes(x = values, color=sampling_method)) +
+  geom_density()
+  
+```
+
+b. In this example, does the sampling distribution depend on whether you sample with or without replacement? Why or why not?
+For the most frequent number, it appears there's no difference between sampling with replacement compared with sampling with no replacement.
+
+c. Compute the mean of the values for each of $A$ and $B$. Compute the mean of the values in the sampling distribution of $A+B$. How are the means related?
+
+```{r}
+list(mean_a=mean(A), mean_b=mean(B), mean_ab_r=mean(ab_sampling_dist_r), mean_ab_nr=mean(ab_sampling_dist_nr))
+```
+It appears that the mean of $A+B$ is the mean of the mean of the two groups.
+
+d. Suppose you draw a random value from $A$ and a random value from $B$. What is the probability that the sum is 13 or larger?
+
+```{r}
+df <- expand.grid(A, B) |> 
+  as.data.frame()
+
+df |> 
+  rename(a=Var1, b=Var2) |> 
+  mutate(s=a+b) |> 
+  group_by(s) |> 
+  tally() |> 
+  mutate(prop=round(n/sum(n), 3))
+```
+```{r}
+0.083*2
+```
+
+## 4.4
+Consider the population ${3, 5, 6, 6, 8, 11, 13, 15, 19, 20}$.
+
+a. Compute the mean and standard deviation and create a dot plot of its distribution.
+
+```{r}
+p4.4 <- c(3, 5, 6, 6, 8, 11, 13, 15, 19, 20) 
+list(mean=mean(p4.4), sd=sd(p4.4))
+```
+```{r}
+ggplot() +
+  geom_dotplot(aes(x=p4.4))
+```
+
+
+
